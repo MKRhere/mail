@@ -1,0 +1,19 @@
+{
+	"name": "mail",
+	"module": "index.ts",
+	"type": "module",
+	"private": true,
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@types/imapflow": "^1.0.20",
+		"@types/nodemailer": "^6.4.17"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"imapflow": "^1.0.184",
+		"nodemailer": "^6.10.0",
+		"telegraf": "^4.16.3"
+	}
+}
