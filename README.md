@@ -10,10 +10,13 @@ This project uses Bun, and relies on `bun:sqlite` for the KV store. It won't wor
 
 The configuration is done using environment variables.
 
--   `AUTH_URL`: The URL of the IMAP server in the format `imap://user:pass@host:port` (required). Remember to URL encode the username and password.
+-   `AUTH_URL`: The URL of the IMAP server in the format `imaps://user:pass@host:port/mailbox` (required).
+    -   Remember to URL-encode the username and password.
+    -   If no port is provided, it will default to `993` for `imaps:` and `143` for `imap:`.
+    -   If the protocol is `imaps:`, it will use TLS. Otherwise, it will use an unencrypted connection and upgrade to STARTTLS.
+    -   If no mailbox is specified, it will default to `INBOX`.
 -   `BOT_TOKEN`: The token of the Telegram bot (required).
 -   `CHAT_ID`: The ID of the Telegram chat (required).
--   `MAILBOX`: The mailbox to read emails from (default: `INBOX`).
 -   `KV_STORE`: The path to the KV store (default: `kv.sqlite`).
 
 Env vars can be set in a `.env` file or exported in your shell. Bun will automatically pick them up.

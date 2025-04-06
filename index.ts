@@ -9,7 +9,6 @@ import { KV } from "./kv.ts";
 const AUTH_URL = Bun.env.AUTH_URL;
 const BOT_TOKEN = Bun.env.BOT_TOKEN;
 const CHAT_ID = Bun.env.CHAT_ID;
-const MAILBOX = Bun.env.MAILBOX || "INBOX";
 const KV_STORE = Bun.env.KV_STORE || "kv.sqlite";
 
 if (!AUTH_URL) throw new Error("AUTH_URL is not set");
@@ -134,7 +133,9 @@ const logger = { debug: wrapped, info: wrapped, warn: wrapped, error: wrapped };
 
 type Auth = ImapFlowOptions["auth"];
 const auth: Auth = { user: decodeURIComponent(uri.username), pass: decodeURIComponent(uri.password) };
-const config: ImapFlowOptions = { host: uri.hostname, port: parseInt(uri.port), secure: true, logger, auth };
+const secure = uri.protocol === "imaps:";
+const port = parseInt(uri.port) || (secure ? 993 : 143);
+const config: ImapFlowOptions = { host: uri.hostname, port, secure, logger, auth };
 
 const pipe =
 	(...fs: (() => void)[]) =>
@@ -177,7 +178,7 @@ while (true) {
 			interval = setInterval(() => imap?.noop(), 1000 * 60 * 1);
 
 			log("getting mailbox lock");
-			lock = await imap.getMailboxLock(MAILBOX);
+			lock = await imap.getMailboxLock(uri.pathname.slice(1) || "INBOX");
 
 			imap.on("error", pipe(cleanup, reject));
 			imap.on("close", pipe(cleanup, resolve));
