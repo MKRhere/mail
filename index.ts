@@ -1,6 +1,5 @@
 import { Telegraf } from "telegraf";
 import { escapers } from "@telegraf/entity";
-import ms from "ms";
 import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
 import { ImapFlow, type ImapFlowOptions, type MailboxLockObject } from "imapflow";
 import { setTimeout as sleep } from "node:timers/promises";
