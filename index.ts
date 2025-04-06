@@ -10,7 +10,6 @@ import { KV } from "./kv.ts";
 const AUTH_URL = Bun.env.AUTH_URL;
 const BOT_TOKEN = Bun.env.BOT_TOKEN;
 const CHAT_ID = Bun.env.CHAT_ID;
-const CHECK_INTERVAL = parseInt(Bun.env.CHECK_INTERVAL || String(1000 * 60 * 1)); // Default 1 minute
 const MAILBOX = Bun.env.MAILBOX || "INBOX";
 const KV_STORE = Bun.env.KV_STORE || "kv.sqlite";
 
@@ -86,8 +85,10 @@ function on(imap: ImapFlow): AsyncIterable<ParsedMail & { seq: number }> {
 					while (true) {
 						if (error) throw error;
 						if (done) return { value: undefined, done: true };
-						log("sleeping for %s", ms(CHECK_INTERVAL));
-						await sleep(CHECK_INTERVAL);
+
+						log("waiting for 'exists' event");
+						await new Promise(resolve => imap.once("exists", resolve));
+						log("'exists' event received");
 
 						try {
 							const lastSeenSeq = kv.get("lastSeenSeq");
