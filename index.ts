@@ -41,6 +41,13 @@ const address = (address: AddressObject | AddressObject[] | undefined) => {
 	return addresses.map(a => `${a.name} <${a.address}>`).join(", ");
 };
 
+const formatBytes = (bytes: number) => {
+	if (bytes < 1024) return `${bytes} bytes`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KiB`;
+	if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MiB`;
+	return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GiB`;
+};
+
 // Function to format email for Telegram
 function formatMailForTg(mail: ParsedMail): string {
 	const from = address(mail.from);
@@ -49,6 +56,8 @@ function formatMailForTg(mail: ParsedMail): string {
 
 	const text = removeMailContext(mail.text || mail.html || "") || "No text";
 	const date = mail.date ? new Date(mail.date).toLocaleString() : "Unknown";
+
+	const attachments = mail.attachments.map(a => `* ${a.filename} (${formatBytes(a.size)})`).join("\n");
 
 	// @ts-expect-error let it garbage collect
 	mail = null;
@@ -62,6 +71,8 @@ function formatMailForTg(mail: ParsedMail): string {
 <b>Date:</b> ${escapers.HTML(date)}
 
 <pre><code>${escapers.HTML(text)}</code></pre>
+
+${attachments ? `<b>Attachments:</b>\n${escapers.HTML(attachments)}` : ""}
 `.trim();
 
 	formattedLog(formatted);
