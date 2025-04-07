@@ -2,7 +2,7 @@
 
 This is a personal project to read emails from my inbox via IMAP and send them to a Telegram chat. Feel free to use it or adapt it as a starting point for your own project.
 
-It's event-driven, so it picks up new emails as they come in. Upon encountering errors, it will automatically retry after 1s. Last seen email's seq is stored in a KV store, so it will pick up from where it left off even after a restart.
+It's event-driven, so it picks up new emails as they come in. Upon encountering errors, it will automatically retry after 1s. Last seen email's uid is stored in a KV store, so it will pick up from where it left off even after a restart.
 
 This project uses Bun, and relies on `bun:sqlite` for the KV store. It won't work with Node or Deno.
 
@@ -34,6 +34,18 @@ To run:
 ```bash
 bun run index.ts
 ```
+
+## Gotchas
+
+The IMAP spec [RFC 3501](https://datatracker.ietf.org/doc/html/rfc3501#section-2.3.1.1) says that `uid`s must be sequential and unique within a mailbox. However, it allows for a `UIDVALIDITY` mechanism, which it discourages.
+
+> Ideally, unique identifiers SHOULD persist at all
+> times. Although this specification recognizes that failure
+> to persist can be unavoidable in certain server
+> environments, it STRONGLY ENCOURAGES message store
+> implementation techniques that avoid this problem.
+
+`mkr/mail` simply assumes that `uid`s won't change or be out of order to keep track of the last seen email.
 
 ## License
 

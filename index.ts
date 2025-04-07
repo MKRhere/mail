@@ -75,7 +75,7 @@ async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> 
 		const next = `${(lastSeenUid ?? 0) + 1}:*`;
 		log("searching for seq %s", next);
 
-		const unread = (await imap.search({ seen: false, all: true, uid: next }, { uid: true })) //
+		const unread = (await imap.search({ seen: false, all: true, uid: next }, { uid: true })) // uids don't change
 			.filter(uid => uid > (lastSeenUid ?? 0));
 
 		log("found %d new unread: %o", unread.length, unread);
