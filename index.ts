@@ -15,7 +15,7 @@ if (!AUTH_URL) throw new Error("AUTH_URL is not set");
 if (!BOT_TOKEN) throw new Error("BOT_TOKEN is not set");
 if (!CHAT_ID) throw new Error("CHAT_ID is not set");
 
-const kv = new KV<{ lastSeenSeq: number }>(KV_STORE);
+const kv = new KV<{ lastSeenUid: number }>(KV_STORE);
 
 const bot = new Telegraf(BOT_TOKEN);
 
@@ -64,66 +64,31 @@ function formatMailForTg(mail: ParsedMail): string {
 	return formatted;
 }
 
-function on(imap: ImapFlow): AsyncIterable<ParsedMail & { seq: number }> {
-	let error: Error | undefined;
-	let done = false;
+async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> {
+	while (true) {
+		const lastSeenUid = kv.get("lastSeenUid");
 
-	const errorHandler = (err: Error) => (error = err);
-	const closeHandler = () => (done = true);
+		log("waiting for 'exists' event");
+		await new Promise(resolve => imap.once("exists", resolve));
+		log("'exists' event received");
 
-	imap.on("error", errorHandler);
-	imap.on("close", closeHandler);
+		const next = `${(lastSeenUid ?? 0) + 1}:*`;
+		log("searching for seq %s", next);
 
-	const log = w("mkrmail:search");
+		const unread = (await imap.search({ seen: false, all: true, uid: next }, { uid: true })) //
+			.filter(uid => uid > (lastSeenUid ?? 0));
 
-	return {
-		[Symbol.asyncIterator]() {
-			return {
-				async next() {
-					while (true) {
-						if (error) throw error;
-						if (done) return { value: undefined, done: true };
+		log("found %d new unread: %o", unread.length, unread);
 
-						log("waiting for 'exists' event");
-						await new Promise(resolve => imap.once("exists", resolve));
-						log("'exists' event received");
+		for (const uid of unread) {
+			log("fetching message %d", uid);
+			const message = await imap.fetchOne(uid.toString(), { source: true }, { uid: true });
+			if (!message) continue;
 
-						try {
-							const lastSeenSeq = kv.get("lastSeenSeq");
-
-							const next = `${(lastSeenSeq ?? 0) + 1}:*`;
-							log("searching for seq %s", next);
-							const unread = await imap.search({ seen: false, all: true, seq: next });
-							log("found %d unread: %o", unread.length, unread);
-							const seq = unread.shift();
-							if (!seq) continue;
-
-							if (lastSeenSeq && seq <= lastSeenSeq) continue;
-
-							log("fetching message %d", seq);
-							const [message] = await imap.fetchAll([seq], { source: true });
-							if (!message) continue;
-
-							kv.set("lastSeenSeq", seq);
-							return { value: Object.assign(await simpleParser(message.source), { seq }), done: false };
-						} catch (e) {
-							log("error: %o", e);
-						}
-					}
-				},
-				async return() {
-					imap.off("error", errorHandler);
-					imap.off("close", closeHandler);
-					return { value: undefined, done: true };
-				},
-				async throw(error: unknown) {
-					imap.off("error", errorHandler);
-					imap.off("close", closeHandler);
-					throw error;
-				},
-			};
-		},
-	};
+			kv.set("lastSeenUid", uid);
+			yield Object.assign(await simpleParser(message.source), { uid });
+		}
+	}
 }
 
 const log = w("mkrmail:main");
@@ -185,15 +150,17 @@ while (true) {
 
 			try {
 				for await (const msg of on(imap)) {
-					log("found new message: %d, sending to telegram", msg.seq);
+					if (!imap) break;
+					log("found new message: %d, sending to telegram", msg.uid);
 					await bot.telegram.sendMessage(CHAT_ID, formatMailForTg(msg), { parse_mode: "HTML" });
-					log("sent message %d to telegram", msg.seq);
+					log("sent message %d to telegram", msg.uid);
 				}
 			} finally {
 				cleanup();
 			}
 		});
 	} catch (error) {
+		cleanup();
 		log("error in main loop, reconnecting: %o", error);
 	}
 
