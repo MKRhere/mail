@@ -68,15 +68,18 @@ async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> 
 	while (true) {
 		const lastSeenUid = kv.get("lastSeenUid");
 
-		log("waiting for 'exists' event");
-		await new Promise(resolve => imap.once("exists", resolve));
-		log("'exists' event received");
-
 		const next = `${(lastSeenUid ?? 0) + 1}:*`;
 		log("searching for seq %s", next);
 
 		const unread = (await imap.search({ seen: false, all: true, uid: next }, { uid: true })) // uids don't change
 			.filter(uid => uid > (lastSeenUid ?? 0));
+
+		if (unread.length === 0) {
+			log("no new messages, waiting for 'exists' event");
+			await new Promise(resolve => imap.once("exists", resolve));
+			log("'exists' event received");
+			continue;
+		}
 
 		log("found %d new unread: %o", unread.length, unread);
 
