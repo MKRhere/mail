@@ -9,11 +9,15 @@ import { KV } from "./kv.ts";
 const AUTH_URL = Bun.env.AUTH_URL;
 const BOT_TOKEN = Bun.env.BOT_TOKEN;
 const CHAT_ID = Bun.env.CHAT_ID;
-const KV_STORE = Bun.env.KV_STORE || "kv.sqlite";
 
 if (!AUTH_URL) throw new Error("AUTH_URL is not set");
 if (!BOT_TOKEN) throw new Error("BOT_TOKEN is not set");
 if (!CHAT_ID) throw new Error("CHAT_ID is not set");
+
+const WAIT_AFTER_MESSAGE = parseInt(Bun.env.WAIT_AFTER_MESSAGE || "100");
+const BATCH_SIZE = parseInt(Bun.env.BATCH_SIZE || "20");
+const NOOP_INTERVAL = parseInt(Bun.env.NOOP_INTERVAL || "60000");
+const KV_STORE = Bun.env.KV_STORE || "kv.sqlite";
 
 const kv = new KV<{ lastSeenUid: number }>(KV_STORE);
 
@@ -71,8 +75,20 @@ async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> 
 		const next = `${(lastSeenUid ?? 0) + 1}:*`;
 		log("searching for seq %s", next);
 
-		const unread = (await imap.search({ seen: false, all: true, uid: next }, { uid: true })) // uids don't change
-			.filter(uid => uid > (lastSeenUid ?? 0));
+		const unread = (
+			await imap.search(
+				{
+					seen: false,
+					all: true,
+					uid: next,
+					since: lastSeenUid ? undefined : new Date(),
+				},
+				// uids don't change so it's much safer than
+				{ uid: true },
+			)
+		)
+			.filter(uid => uid > (lastSeenUid ?? 0))
+			.slice(0, BATCH_SIZE); // process at most BATCH_SIZE messages at a time
 
 		if (unread.length === 0) {
 			log("no new messages, waiting for 'exists' event");
@@ -143,7 +159,7 @@ while (true) {
 			await imap.connect();
 
 			clearInterval(interval);
-			interval = setInterval(() => imap?.noop(), 1000 * 60 * 1);
+			interval = setInterval(() => imap?.noop(), NOOP_INTERVAL);
 
 			log("getting mailbox lock");
 			lock = await imap.getMailboxLock(uri.pathname.slice(1) || "INBOX");
@@ -157,6 +173,7 @@ while (true) {
 					log("found new message: %d, sending to telegram", msg.uid);
 					await bot.telegram.sendMessage(CHAT_ID, formatMailForTg(msg), { parse_mode: "HTML" });
 					log("sent message %d to telegram", msg.uid);
+					await sleep(WAIT_AFTER_MESSAGE); // wait some time per message to avoid rate limiting
 				}
 			} finally {
 				cleanup();
