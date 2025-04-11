@@ -191,8 +191,8 @@ while (true) {
 			}
 		});
 	} catch (error) {
+		log("error in main loop: %o", error);
 		cleanup();
-		log("error in main loop, reconnecting: %o", error);
 	}
 
 	log("main loop disconnected, reconnecting in 1 second");
