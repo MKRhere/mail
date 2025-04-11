@@ -6,18 +6,18 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { w } from "w";
 import { KV } from "./kv.ts";
 
-const AUTH_URL = Bun.env.AUTH_URL;
-const BOT_TOKEN = Bun.env.BOT_TOKEN;
-const CHAT_ID = Bun.env.CHAT_ID;
+const AUTH_URL = process.env.AUTH_URL;
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const CHAT_ID = process.env.CHAT_ID;
 
 if (!AUTH_URL) throw new Error("AUTH_URL is not set");
 if (!BOT_TOKEN) throw new Error("BOT_TOKEN is not set");
 if (!CHAT_ID) throw new Error("CHAT_ID is not set");
 
-const WAIT_AFTER_MESSAGE = parseInt(Bun.env.WAIT_AFTER_MESSAGE || "100");
-const BATCH_SIZE = parseInt(Bun.env.BATCH_SIZE || "20");
-const NOOP_INTERVAL = parseInt(Bun.env.NOOP_INTERVAL || "60000");
-const KV_STORE = Bun.env.KV_STORE || "kv.sqlite";
+const WAIT_AFTER_MESSAGE = parseInt(process.env.WAIT_AFTER_MESSAGE || "100");
+const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || "20");
+const NOOP_INTERVAL = parseInt(process.env.NOOP_INTERVAL || "60000");
+const KV_STORE = process.env.KV_STORE || "kv.sqlite";
 
 const kv = new KV<{ lastSeenUid: number }>(KV_STORE);
 
@@ -88,12 +88,14 @@ async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> 
 
 		const unread = (
 			await imap.search(
-				{
-					seen: false,
-					all: true,
-					uid: next,
-					since: lastSeenUid ? undefined : new Date(),
-				},
+				Object.assign(
+					{
+						seen: false,
+						all: true,
+						uid: next,
+					},
+					lastSeenUid ? undefined : { since: new Date() },
+				),
 				// uids don't change so it's much safer than
 				{ uid: true },
 			)
@@ -165,20 +167,20 @@ process.on("SIGTERM", pipe(cleanup, process.exit));
 while (true) {
 	try {
 		await new Promise<void>(async (resolve, reject) => {
-			log("connecting to imap");
-			imap = new ImapFlow(config);
-			await imap.connect();
-
-			clearInterval(interval);
-			interval = setInterval(() => imap?.noop(), NOOP_INTERVAL);
-
-			log("getting mailbox lock");
-			lock = await imap.getMailboxLock(uri.pathname.slice(1) || "INBOX");
-
-			imap.on("error", pipe(cleanup, reject));
-			imap.on("close", pipe(cleanup, resolve));
-
 			try {
+				log("connecting to imap");
+				imap = new ImapFlow(config);
+				await imap.connect();
+
+				clearInterval(interval);
+				interval = setInterval(() => imap?.noop(), NOOP_INTERVAL);
+
+				log("getting mailbox lock");
+				lock = await imap.getMailboxLock(uri.pathname.slice(1) || "INBOX");
+
+				imap.on("error", pipe(cleanup, reject));
+				imap.on("close", pipe(cleanup, resolve));
+
 				for await (const msg of on(imap)) {
 					if (!imap) break;
 					log("found new message: %d, sending to telegram", msg.uid);
@@ -186,8 +188,8 @@ while (true) {
 					log("sent message %d to telegram", msg.uid);
 					await sleep(WAIT_AFTER_MESSAGE); // wait some time per message to avoid rate limiting
 				}
-			} finally {
-				cleanup();
+			} catch (e) {
+				reject(e);
 			}
 		});
 	} catch (error) {

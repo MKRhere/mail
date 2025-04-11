@@ -26,9 +26,9 @@ export class KV<Store extends Record<string, JSONValue>> {
 				`,
 			)
 			.run();
-		this.#select = this.#database.query(`SELECT value FROM ${this.#table} WHERE key = $key`);
-		this.#set = this.#database.query(`INSERT OR REPLACE INTO ${this.#table} (key, value) VALUES ($key, $value)`);
-		this.#delete = this.#database.query(`DELETE FROM ${this.#table} WHERE key = $key`);
+		this.#select = this.#database.prepare(`SELECT value FROM ${this.#table} WHERE key = ?`);
+		this.#set = this.#database.prepare(`INSERT OR REPLACE INTO ${this.#table} (key, value) VALUES (?, ?)`);
+		this.#delete = this.#database.prepare(`DELETE FROM ${this.#table} WHERE key = ?`);
 	}
 
 	get<K extends keyof Store & string>(key: K): Store[K] | undefined {
