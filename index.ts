@@ -1,4 +1,5 @@
 import { Telegraf } from "telegraf";
+import { button, inlineKeyboard } from "telegraf/markup";
 import { escapers } from "@telegraf/entity";
 import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
 import { ImapFlow, type ImapFlowOptions, type MailboxLockObject } from "imapflow";
@@ -129,6 +130,7 @@ async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> 
 }
 
 const log = w("mkrmail:main");
+const tgLog = w("tg");
 const internals = w("imapflow");
 const wrapped = (obj: object) => internals("%o", obj);
 const logger = { debug: wrapped, info: wrapped, warn: wrapped, error: wrapped };
@@ -148,6 +150,23 @@ const pipe =
 let imap: ImapFlow | undefined;
 let lock: MailboxLockObject | undefined;
 let interval: NodeJS.Timeout | undefined;
+
+bot.action(/^read_(\d+)$/, async ctx => {
+	const uid = ctx.match[1];
+	try {
+		tgLog("Marking as read: %d", uid);
+		if (!uid) return ctx.answerCbQuery("Invalid UID");
+		if (!imap) return ctx.answerCbQuery("IMAP connection not established");
+		await imap.messageFlagsAdd({ uid }, ["\\Seen"]);
+		await ctx.answerCbQuery("Marked as read");
+		tgLog("Marked as read: %s", uid);
+	} catch (e) {
+		tgLog("Error marking as read: %s", uid, e);
+		await ctx.answerCbQuery("Error marking as read");
+	}
+});
+
+bot.launch(() => tgLog("Bot started"));
 
 const cleanup = () => {
 	if (interval) {
@@ -169,8 +188,13 @@ const cleanup = () => {
 process.on("SIGINT", pipe(cleanup, process.exit));
 process.on("SIGTERM", pipe(cleanup, process.exit));
 
+function kb(uid: number) {
+	return inlineKeyboard([button.callback("Read", `read_${uid}`)]);
+}
+
 while (true) {
 	try {
+		// oxlint-disable-next-line no-async-promise-executor It's required to use async/await here, and errors are properly handled
 		await new Promise<void>(async (resolve, reject) => {
 			try {
 				log("connecting to imap");
@@ -189,7 +213,10 @@ while (true) {
 				for await (const msg of on(imap)) {
 					if (!imap) break;
 					log("found new message: %d, sending to telegram", msg.uid);
-					await bot.telegram.sendMessage(CHAT_ID, formatMailForTg(msg), { parse_mode: "HTML" });
+					await bot.telegram.sendMessage(CHAT_ID, formatMailForTg(msg), {
+						parse_mode: "HTML",
+						...kb(msg.uid),
+					});
 					log("sent message %d to telegram", msg.uid);
 					await sleep(WAIT_AFTER_MESSAGE); // wait some time per message to avoid rate limiting
 				}
