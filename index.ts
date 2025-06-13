@@ -130,7 +130,7 @@ async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> 
 }
 
 const log = w("mkrmail:main");
-const tgLog = w("tg");
+const tgLog = w("mkrmail:tg");
 const internals = w("imapflow");
 const wrapped = (obj: object) => internals("%o", obj);
 const logger = { debug: wrapped, info: wrapped, warn: wrapped, error: wrapped };
