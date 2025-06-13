@@ -160,6 +160,8 @@ bot.action(/^read_(\d+)$/, async ctx => {
 		await imap.messageFlagsAdd({ uid }, ["\\Seen"]);
 		await ctx.answerCbQuery("Marked as read");
 		tgLog("Marked as read: %s", uid);
+		// remove the keyboard since it only has [Read] button
+		await ctx.editMessageReplyMarkup(undefined);
 	} catch (e) {
 		tgLog("Error marking as read: %s", uid, e);
 		await ctx.answerCbQuery("Error marking as read");
