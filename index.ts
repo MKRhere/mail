@@ -48,13 +48,18 @@ const formatBytes = (bytes: number) => {
 	return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GiB`;
 };
 
+function trunc(text: string, maxLength: number) {
+	if (text.length <= maxLength) return text;
+	return text.slice(0, maxLength) + "...";
+}
+
 // Function to format email for Telegram
 function formatMailForTg(mail: ParsedMail): string {
 	const from = address(mail.from);
 	const to = address(mail.to);
 	const subject = mail.subject || "(No Subject)";
 
-	const text = removeMailContext(mail.text || mail.html || "") || "No text";
+	const text = removeMailContext(trunc(mail.text || mail.html || "", 2048)) || "No text";
 	const date = mail.date ? new Date(mail.date).toLocaleString() : "Unknown";
 
 	const attachments = mail.attachments.map(a => `* ${a.filename} (${formatBytes(a.size)})`).join("\n");
@@ -96,7 +101,7 @@ async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> 
 					},
 					lastSeenUid ? undefined : { since: new Date() },
 				),
-				// uids don't change so it's much safer than
+				// uids don't change so it's much safer than seq
 				{ uid: true },
 			)
 		)
