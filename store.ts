@@ -3,7 +3,7 @@ import Database from "bun:sqlite";
 export class Store {
 	readonly #database: Database;
 	readonly #table: string;
-	#uid;
+	#kv;
 
 	constructor(filename: string, table?: string) {
 		this.#database = new Database(filename);
@@ -19,7 +19,7 @@ export class Store {
 			)
 			.run();
 
-		this.#uid = {
+		this.#kv = {
 			select: this.#database.prepare(`SELECT value FROM ${this.#table} WHERE key = ?`),
 			set: this.#database.prepare(`INSERT OR REPLACE INTO ${this.#table} (key, value) VALUES (?, ?)`),
 			delete: this.#database.prepare(`DELETE FROM ${this.#table} WHERE key = ?`),
@@ -27,11 +27,11 @@ export class Store {
 	}
 
 	getUid(): number | undefined {
-		const row = this.#uid.select.get("lastSeenUid") as { value: string } | null;
+		const row = this.#kv.select.get("lastSeenUid") as { value: string } | null;
 		return row?.value ? JSON.parse(row.value) : undefined;
 	}
 
 	setUid(value: number) {
-		return this.#uid.set.run("lastSeenUid", JSON.stringify(value));
+		return this.#kv.set.run("lastSeenUid", JSON.stringify(value));
 	}
 }

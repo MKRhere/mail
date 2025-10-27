@@ -5,7 +5,15 @@ import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
 import { ImapFlow, type ImapFlowOptions, type MailboxLockObject } from "imapflow";
 import { setTimeout as sleep } from "node:timers/promises";
 import { w } from "w";
-import { Store } from "./kv.ts";
+import { Store } from "./store.ts";
+
+const config = (await Bun.file("config.json")
+	.json()
+	.catch(e => {
+		console.error(e);
+		console.warn("Using empty config");
+		return {};
+	})) as Record<string, number[]>;
 
 const AUTH_URL = process.env.AUTH_URL;
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -20,7 +28,7 @@ const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || "20");
 const NOOP_INTERVAL = parseInt(process.env.NOOP_INTERVAL || "60000");
 const KV_STORE = process.env.KV_STORE || "kv.sqlite";
 
-const kv = new Store(KV_STORE);
+const store = new Store(KV_STORE);
 
 const bot = new Telegraf(BOT_TOKEN);
 
@@ -87,7 +95,7 @@ ${attachments ? `<b>Attachments:</b>\n${escapers.HTML(attachments)}` : ""}
 
 async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> {
 	while (true) {
-		const lastSeenUid = kv.getUid();
+		const lastSeenUid = store.getUid();
 
 		const next = `${(lastSeenUid ?? 0) + 1}:*`;
 		log("searching for seq %s", next);
@@ -123,7 +131,7 @@ async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> 
 			const message = await imap.fetchOne(uid.toString(), { source: true }, { uid: true });
 			if (!message) continue;
 
-			kv.setUid(uid);
+			store.setUid(uid);
 			yield Object.assign(await simpleParser(message.source), { uid });
 		}
 	}
@@ -139,7 +147,7 @@ type Auth = ImapFlowOptions["auth"];
 const auth: Auth = { user: decodeURIComponent(uri.username), pass: decodeURIComponent(uri.password) };
 const secure = uri.protocol === "imaps:";
 const port = parseInt(uri.port) || (secure ? 993 : 143);
-const config: ImapFlowOptions = { host: uri.hostname, port, secure, logger, auth };
+const imapConfig: ImapFlowOptions = { host: uri.hostname, port, secure, logger, auth };
 
 const pipe =
 	(...fs: (() => void)[]) =>
@@ -200,7 +208,7 @@ while (true) {
 		await new Promise<void>(async (resolve, reject) => {
 			try {
 				log("connecting to imap");
-				imap = new ImapFlow(config);
+				imap = new ImapFlow(imapConfig);
 				await imap.connect();
 
 				clearInterval(interval);
@@ -215,10 +223,25 @@ while (true) {
 				for await (const msg of on(imap)) {
 					if (!imap) break;
 					log("found new message: %d, sending to telegram", msg.uid);
-					await bot.telegram.sendMessage(CHAT_ID, formatMailForTg(msg), {
-						parse_mode: "HTML",
-						...kb(msg.uid),
-					});
+					const formatted = formatMailForTg(msg);
+					await bot.telegram.sendMessage(CHAT_ID, formatted, { parse_mode: "HTML", ...kb(msg.uid) });
+					const otherRecipients = msg.from?.value.flatMap(
+						email => (email.address ? config[email.address] : []) ?? [],
+					);
+					if (otherRecipients?.length) {
+						await Promise.all(
+							otherRecipients.map(each => {
+								return bot.telegram
+									.sendMessage(each, formatted, { parse_mode: "HTML" })
+									.catch(e => (console.error(e), null));
+							}),
+						).then(sent => {
+							const success = sent.filter(x => x);
+							const failed = sent.filter(x => !x);
+							if (success.length) console.log("Additionally forwarded to", success.length, "recipients");
+							if (failed.length) console.warn(failed.length, "forwards failed");
+						});
+					}
 					log("sent message %d to telegram", msg.uid);
 					await sleep(WAIT_AFTER_MESSAGE); // wait some time per message to avoid rate limiting
 				}
