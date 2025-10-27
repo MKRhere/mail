@@ -5,7 +5,7 @@ import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
 import { ImapFlow, type ImapFlowOptions, type MailboxLockObject } from "imapflow";
 import { setTimeout as sleep } from "node:timers/promises";
 import { w } from "w";
-import { KV } from "./kv.ts";
+import { Store } from "./kv.ts";
 
 const AUTH_URL = process.env.AUTH_URL;
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -20,7 +20,7 @@ const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || "20");
 const NOOP_INTERVAL = parseInt(process.env.NOOP_INTERVAL || "60000");
 const KV_STORE = process.env.KV_STORE || "kv.sqlite";
 
-const kv = new KV<{ lastSeenUid: number }>(KV_STORE);
+const kv = new Store(KV_STORE);
 
 const bot = new Telegraf(BOT_TOKEN);
 
@@ -87,7 +87,7 @@ ${attachments ? `<b>Attachments:</b>\n${escapers.HTML(attachments)}` : ""}
 
 async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> {
 	while (true) {
-		const lastSeenUid = kv.get("lastSeenUid");
+		const lastSeenUid = kv.getUid();
 
 		const next = `${(lastSeenUid ?? 0) + 1}:*`;
 		log("searching for seq %s", next);
@@ -123,7 +123,7 @@ async function* on(imap: ImapFlow): AsyncIterable<ParsedMail & { uid: number }> 
 			const message = await imap.fetchOne(uid.toString(), { source: true }, { uid: true });
 			if (!message) continue;
 
-			kv.set("lastSeenUid", uid);
+			kv.setUid(uid);
 			yield Object.assign(await simpleParser(message.source), { uid });
 		}
 	}
