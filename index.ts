@@ -237,7 +237,7 @@ while (true) {
 						.flatMap(each => each.value)
 						.flatMap(email => (email.address ? config["to:" + email.address] : []) ?? []);
 
-					const otherRecipients = otherA.concat(otherB);
+					const otherRecipients = [...new Set(otherA.concat(otherB))];
 
 					if (otherRecipients.length) {
 						await Promise.all(
