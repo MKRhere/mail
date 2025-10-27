@@ -224,11 +224,22 @@ while (true) {
 					if (!imap) break;
 					log("found new message: %d, sending to telegram", msg.uid);
 					const formatted = formatMailForTg(msg);
+
 					await bot.telegram.sendMessage(CHAT_ID, formatted, { parse_mode: "HTML", ...kb(msg.uid) });
-					const otherRecipients = msg.from?.value.flatMap(
-						email => (email.address ? config[email.address] : []) ?? [],
+					log("sent message %d to telegram", msg.uid);
+
+					const otherA = (msg.from?.value ?? []).flatMap(
+						email => (email.address ? config["from:" + email.address] : []) ?? [],
 					);
-					if (otherRecipients?.length) {
+
+					const to = msg.to ? (Array.isArray(msg.to) ? msg.to : [msg.to]) : [];
+					const otherB = to
+						.flatMap(each => each.value)
+						.flatMap(email => (email.address ? config["to:" + email.address] : []) ?? []);
+
+					const otherRecipients = otherA.concat(otherB);
+
+					if (otherRecipients.length) {
 						await Promise.all(
 							otherRecipients.map(each => {
 								return bot.telegram
@@ -242,7 +253,7 @@ while (true) {
 							if (failed.length) console.warn(failed.length, "forwards failed");
 						});
 					}
-					log("sent message %d to telegram", msg.uid);
+
 					await sleep(WAIT_AFTER_MESSAGE); // wait some time per message to avoid rate limiting
 				}
 			} catch (e) {
