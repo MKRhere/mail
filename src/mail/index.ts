@@ -26,7 +26,7 @@ export function init({
 	host,
 	port,
 	mailbox,
-	targetChatId,
+	bridged_chat_id,
 	mapping,
 	bot,
 	store,
@@ -37,7 +37,7 @@ export function init({
 	host: string;
 	port: number;
 	mailbox?: string;
-	targetChatId: number;
+	bridged_chat_id: number;
 	mapping: Record<string, number[]>;
 	bot: Telegraf;
 	store: Store;
@@ -157,7 +157,7 @@ export function init({
 								log("found new message: %d, sending to telegram", msg.uid);
 								const formatted = fmtMail(msg);
 
-								await bot.telegram.sendMessage(targetChatId, formatted, {
+								await bot.telegram.sendMessage(bridged_chat_id, formatted, {
 									parse_mode: "HTML",
 									...kb(msg.uid),
 								});

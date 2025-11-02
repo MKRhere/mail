@@ -27,14 +27,15 @@ const mail = Mail.init({
 	host: uri.hostname,
 	port: parseInt(uri.port) || (secure ? 993 : 143),
 	mailbox: uri.pathname.slice(1) || "INBOX",
-	targetChatId: config.mail_chat_id,
+	bridged_chat_id: config.bridged_chat_id,
 	mapping: config.mapping,
 	bot: tg.bot,
 	store: store,
 });
 
-const cleanup = pipe(mail.deinit, tg.deinit, store.deinit, process.exit);
+const cleanup = pipe(() => console.log("Exiting..."), mail.deinit, tg.deinit, store.deinit);
 process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
 
+log("Starting mail listener");
 await mail.listen();
