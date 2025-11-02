@@ -19,6 +19,7 @@
 	"dependencies": {
 		"@telegraf/entity": "^0.6.0",
 		"imapflow": "^1.0.184",
+		"json5": "^2.2.3",
 		"mailparser": "^3.7.2",
 		"telegraf": "^4.16.3",
 		"w": "^2.3.1",

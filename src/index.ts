@@ -9,7 +9,7 @@ import { pipe } from "./utils.ts";
 const log = w("alice:main");
 
 log("Parsing config");
-const config = Config.schema.parse(await Bun.file("config.json").json());
+const config = await Config.init(process.argv);
 
 log("Opening store");
 const store = Store.init(config.store);

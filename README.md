@@ -8,19 +8,32 @@ This project uses Bun, and relies on `bun:sqlite` for the KV store. It won't wor
 
 ## Configuration
 
-The configuration is done using a `config.json` file. Here are the available options:
+The configuration is done using a `config.json5` or `config.json` file. A custom path can be passed with `-c my_config.json5`.
 
-```json
+Here are the available options:
+
+```json5
 {
-	"bot_token": "string", // Required; Telegram bot token
-	"imap_url": "string", // Required; IMAP URL in the format imaps://user:pass@host:port/mailbox (mailbox is optional, defaults to INBOX)
-	"bridged_chat_id": 1234, // Required; Telegram chat ID to send all messages to
-	"store": "string", // Optional, default: "kv.sqlite"
-	"mapping": {
-		// Optional; map specific messages from specific email addresses to different Telegram chat IDs
+	// Required; Telegram bot token
+	bot_token: "string",
+
+	// Required; IMAP URL in the format imaps://user:pass@host:port/mailbox
+	// Only user, pass, and host are required
+	//   - port defaults to 993 (if imaps://) or 143
+	//   - mailbox defaults to INBOX
+	imap_url: "imaps://user:pass@host",
+
+	// Required; Telegram chat ID to send all messages to
+	bridged_chat_id: 1234,
+
+	// Optional; default: "kv.sqlite"
+	store: "my_kv.store",
+
+	// Optional; map specific messages from specific email addresses to different Telegram chat IDs
+	mapping: {
 		"from:email@domain": [5678],
-		"to:other@domain": [9012]
-	}
+		"to:other@domain": [9012],
+	},
 }
 ```
 
